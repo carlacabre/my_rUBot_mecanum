@@ -23,7 +23,7 @@ def generate_launch_description():
         DeclareLaunchArgument('lateral_speed', default_value='0.20'),
         DeclareLaunchArgument('turn_speed', default_value='1.00'),
         DeclareLaunchArgument('detection_limit', default_value='1.20'),
-        DeclareLaunchArgument('lateral_gain', default_value='1.5'),
+        DeclareLaunchArgument('lateral_gain', default_value='2.0'),
         DeclareLaunchArgument('alignment_gain', default_value='2.0'),
         Node(
             package='my_robot_control',
