@@ -150,13 +150,41 @@ class HolonomicObstacleWallFollower(Node):
     def closest_region(self, measurements):
         """Return the closest region inside detection_limit."""
         # TODO 3: Ignore regions whose distance is not below detection_limit.
-        raise NotImplementedError
+        visible = {
+            region: distance
+            for region, (distance, _) in measurements.items()
+            if distance < self.detection_limit
+        }
+        if not visible:
+            return None
+        return min(visible, key=visible.get)
 
     def confirmed_region(self, measurements):
         """Confirm a region change over several consecutive scans."""
         # TODO 4: Update region_candidate, region_candidate_count and
         # stable_region using self.region_confirmations.
-        raise NotImplementedError
+        closest = self.closest_region(measurements)
+        if closest == self.stable_region:
+            # No change: forget any half-confirmed candidate.
+            self.region_candidate = None
+            self.region_candidate_count = 0
+        elif closest == self.region_candidate:
+            self.region_candidate_count += 1
+        else:
+            self.region_candidate = closest
+            self.region_candidate_count = 1
+
+        if self.region_candidate_count >= self.region_confirmations:
+            self.stable_region = self.region_candidate
+            self.region_candidate = None
+            self.region_candidate_count = 0
+        return self.stable_region
+
+    def set_state(self, state):
+        """Change state and log the transition."""
+        if state != self.state:
+            self.get_logger().info(f'STATE {self.state} -> {state}')
+            self.state = state
 
     def lateral_progress(self):
         """Return travel along the robot's initial lateral axis."""
@@ -171,7 +199,36 @@ class HolonomicObstacleWallFollower(Node):
         # - Correct right distance with linear.y.
         # - Move the closest RIGHT angle towards -90 degrees.
         # - While passing_short_obstacle is True, keep angular.z at zero.
-        pass
+        if closest == self.FRONT:
+            if self.odom_pose is None:
+                return
+            # Save the entry pose to measure lateral progress in FRONT.
+            self.front_start_pose = self.odom_pose
+            self.set_state(self.FRONT)
+            return
+
+        distance, angle = measurements[self.RIGHT]
+        if angle is None:
+            return  # No right wall visible: stay stopped.
+        self.right_angle = angle
+
+        cmd.linear.x = self.forward_speed
+        # Positive linear.y moves left, away from a too-close right wall.
+        cmd.linear.y = clamp(
+            self.lateral_gain * (self.follow_distance - distance),
+            -self.lateral_speed, self.lateral_speed,
+        )
+        if self.passing_short_obstacle:
+            # The closest point is the obstacle corner, not a wall.
+            cmd.angular.z = 0.0
+        else:
+            # Angle above -90 deg means the nose points into the wall:
+            # positive error -> turn left.
+            angle_error = math.radians(angle + 90.0)
+            cmd.angular.z = clamp(
+                self.alignment_gain * angle_error,
+                -self.turn_speed, self.turn_speed,
+            )
 
     def follow_front(self, measurements, closest, cmd):
         """Move laterally and classify the obstacle as short or long."""
@@ -194,17 +251,29 @@ class HolonomicObstacleWallFollower(Node):
         # TODO 10: Calculate measurements, confirm the closest region, create
         # a new Twist and call the method associated with self.state.
         measurements = self.region_measurements(scan)
+        closest = self.confirmed_region(measurements)
 
-        # Step 2 check: print the four regions once per second.
-        text = []
-        for region, (distance, angle) in measurements.items():
-            if angle is None:
-                text.append(f'{region}: ---')
-            else:
-                text.append(f'{region}: {distance:.2f} m @ {angle:.0f} deg')
-        self.get_logger().info(' | '.join(text), throttle_duration_sec=1.0)
+        cmd = Twist()
+        handlers = {
+            self.RIGHT: self.follow_right,
+            self.FRONT: self.follow_front,
+            self.FRONT_RIGHT: self.follow_front_right,
+            self.BACK_RIGHT: self.follow_back_right,
+        }
+        handlers[self.state](measurements, closest, cmd)
+        self.command = cmd
 
-        self.command = Twist()
+        right_distance, right_angle = measurements[self.RIGHT]
+        right_text = (
+            '---' if right_angle is None
+            else f'{right_distance:.2f} m @ {right_angle:.0f} deg'
+        )
+        self.get_logger().info(
+            f'state={self.state} closest={closest} RIGHT={right_text} '
+            f'-> vx={cmd.linear.x:.2f} vy={cmd.linear.y:.2f} '
+            f'w={cmd.angular.z:.2f}',
+            throttle_duration_sec=0.5,
+        )
 
     def stop(self):
         """Publish a final zero command."""
