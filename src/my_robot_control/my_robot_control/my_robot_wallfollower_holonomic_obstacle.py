@@ -85,7 +85,7 @@ class HolonomicObstacleWallFollower(Node):
         self.timer = self.create_timer(0.05, self.publish_command)
 
         self.get_logger().info(
-            'Student template started. Complete the TODO sections.'
+            'Holonomic obstacle wall follower started: state RIGHT'
         )
 
     def publish_command(self):
@@ -190,7 +190,21 @@ class HolonomicObstacleWallFollower(Node):
         """Return travel along the robot's initial lateral axis."""
         # TODO 5: Project odometry displacement using:
         # abs(-sin(yaw0) * dx + cos(yaw0) * dy)
-        raise NotImplementedError
+        if self.odom_pose is None or self.front_start_pose is None:
+            return 0.0
+        x0, y0, yaw0 = self.front_start_pose
+        x, y, _ = self.odom_pose
+        dx = x - x0
+        dy = y - y0
+        return abs(-math.sin(yaw0) * dx + math.cos(yaw0) * dy)
+
+    def start_front(self):
+        """Enter FRONT for a new frontal obstacle."""
+        # Save the entry pose to measure lateral progress in FRONT.
+        self.front_start_pose = self.odom_pose
+        self.obstacle_is_long = False
+        self.passing_short_obstacle = False
+        self.set_state(self.FRONT)
 
     def follow_right(self, measurements, closest, cmd):
         """Follow the wall using lateral and angular correction."""
@@ -200,11 +214,12 @@ class HolonomicObstacleWallFollower(Node):
         # - Move the closest RIGHT angle towards -90 degrees.
         # - While passing_short_obstacle is True, keep angular.z at zero.
         if closest == self.FRONT:
-            if self.odom_pose is None:
-                return
-            # Save the entry pose to measure lateral progress in FRONT.
-            self.front_start_pose = self.odom_pose
-            self.set_state(self.FRONT)
+            if self.odom_pose is not None:
+                self.start_front()
+            return
+        if closest == self.BACK_RIGHT and self.passing_short_obstacle:
+            # The obstacle corner is now behind: finish the bypass.
+            self.set_state(self.BACK_RIGHT)
             return
 
         distance, angle = measurements[self.RIGHT]
@@ -233,18 +248,88 @@ class HolonomicObstacleWallFollower(Node):
     def follow_front(self, measurements, closest, cmd):
         """Move laterally and classify the obstacle as short or long."""
         # TODO 7: Move with +vy, measure lateral progress, and change state.
-        pass
+        if self.obstacle_is_long:
+            # Long wall: turn left until it leaves FRONT.
+            if closest in (self.FRONT_RIGHT, self.RIGHT):
+                self.set_state(self.FRONT_RIGHT)
+                return
+            cmd.angular.z = self.turn_speed
+            return
+
+        if closest != self.FRONT:
+            # FRONT cleared before max_front_length: short obstacle.
+            self.get_logger().info(
+                f'Short obstacle (progress {self.lateral_progress():.2f} m)'
+            )
+            self.passing_short_obstacle = True
+            self.set_state(self.FRONT_RIGHT)
+            return
+
+        if self.odom_pose is None:
+            return
+        if self.lateral_progress() >= self.max_front_length:
+            self.get_logger().info('Long wall: turning left')
+            self.obstacle_is_long = True
+            cmd.angular.z = self.turn_speed
+            return
+
+        # Stop forward motion and move left.
+        cmd.linear.y = self.lateral_speed
 
     def follow_front_right(self, measurements, closest, cmd):
         """Move diagonally around the front-right side."""
         # TODO 8: Handle short-obstacle and long-wall transitions.
-        pass
+        if self.obstacle_is_long:
+            if closest == self.RIGHT:
+                # The long wall is now the right wall.
+                self.obstacle_is_long = False
+                self.set_state(self.RIGHT)
+                return
+            cmd.angular.z = self.turn_speed
+            return
+
+        if closest == self.FRONT:
+            if self.odom_pose is not None:
+                self.start_front()
+            return
+        if closest == self.RIGHT:
+            # Temporary RIGHT phase: passing_short_obstacle keeps w = 0.
+            self.set_state(self.RIGHT)
+            return
+
+        # Move forward and keep follow_distance from the obstacle corner.
+        cmd.linear.x = self.diagonal_factor * self.forward_speed
+        distance, _ = measurements[self.FRONT_RIGHT]
+        if distance < self.detection_limit:
+            cmd.linear.y = clamp(
+                self.lateral_gain * (self.follow_distance - distance),
+                -self.lateral_speed, self.lateral_speed,
+            )
 
     def follow_back_right(self, measurements, closest, cmd):
         """Complete the bypass and recover the right wall."""
         # TODO 9: Move diagonally and clear passing_short_obstacle when RIGHT
         # is recovered.
-        pass
+        if closest == self.FRONT:
+            if self.odom_pose is not None:
+                self.start_front()
+            return
+        if closest == self.RIGHT:
+            # Back on a wall: enable angular alignment again.
+            self.passing_short_obstacle = False
+            self.set_state(self.RIGHT)
+            return
+
+        # Move forward-right around the corner, keeping follow_distance.
+        cmd.linear.x = self.diagonal_factor * self.forward_speed
+        distance, _ = measurements[self.BACK_RIGHT]
+        if distance < self.detection_limit:
+            cmd.linear.y = clamp(
+                self.lateral_gain * (self.follow_distance - distance),
+                -self.lateral_speed, self.lateral_speed,
+            )
+        else:
+            cmd.linear.y = -self.diagonal_factor * self.lateral_speed
 
     def scan_callback(self, scan):
         """Read the LiDAR and calculate the next velocity command."""
