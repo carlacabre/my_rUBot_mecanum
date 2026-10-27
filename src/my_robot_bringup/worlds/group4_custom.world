@@ -2,40 +2,83 @@
 <sdf version="1.8">
   <world name="group4_custom">
 
+       <!-- Perímetro exterior: cuadrado de 3,6 x 3,6 m -->
+    <!-- Paredes norte y sur -->
     <include>
-      <name>wall120_1</name>
+      <name>wall_north_left</name>
       <uri>model://wall120cm</uri>
-      <pose>0 1.2 0.15 0 0 0</pose>
+      <pose>-1.2 1.8 0.15 0 0 0</pose>
     </include>
-
     <include>
-      <name>wall120_2</name>
+      <name>wall_north_center</name>
       <uri>model://wall120cm</uri>
-      <pose>0 -1.2 0.15 0 0 0</pose>
+      <pose>0 1.8 0.15 0 0 0</pose>
     </include>
-
     <include>
-      <name>wall120_3</name>
+      <name>wall_north_right</name>
       <uri>model://wall120cm</uri>
-      <pose>1.2 0 0.15 0 0 1.5708</pose> <!-- yaw = 90 grados en radianes -->
+      <pose>1.2 1.8 0.15 0 0 0</pose>
     </include>
 
     <include>
-      <name>wall120_4</name>
+      <name>wall_south_left</name>
       <uri>model://wall120cm</uri>
-      <pose>-1.2 0 0.15 0 0 1.5708</pose>
+      <pose>-1.2 -1.8 0.15 0 0 0</pose>
+    </include>
+    <include>
+      <name>wall_south_center</name>
+      <uri>model://wall120cm</uri>
+      <pose>0 -1.8 0.15 0 0 0</pose>
+    </include>
+    <include>
+      <name>wall_south_right</name>
+      <uri>model://wall120cm</uri>
+      <pose>1.2 -1.8 0.15 0 0 0</pose>
+    </include>
+
+    <!-- Paredes este y oeste -->
+    <include>
+      <name>wall_east_lower</name>
+      <uri>model://wall120cm</uri>
+      <pose>1.8 -1.2 0.15 0 0 1.5708</pose>
+    </include>
+    <include>
+      <name>wall_east_center</name>
+      <uri>model://wall120cm</uri>
+      <pose>1.8 0 0.15 0 0 1.5708</pose>
+    </include>
+    <include>
+      <name>wall_east_upper</name>
+      <uri>model://wall120cm</uri>
+      <pose>1.8 1.2 0.15 0 0 1.5708</pose>
     </include>
 
     <include>
-      <name>internal_wall_1</name>
-      <uri>model://wall30cm</uri>
-      <pose>0.6 0.6 0.15 0 0 0.7854</pose> <!-- yaw = 45 grados en radianes -->
+      <name>wall_west_lower</name>
+      <uri>model://wall120cm</uri>
+      <pose>-1.8 -1.2 0.15 0 0 1.5708</pose>
+    </include>
+    <include>
+      <name>wall_west_center</name>
+      <uri>model://wall120cm</uri>
+      <pose>-1.8 0 0.15 0 0 1.5708</pose>
+    </include>
+    <include>
+      <name>wall_west_upper</name>
+      <uri>model://wall120cm</uri>
+      <pose>-1.8 1.2 0.15 0 0 1.5708</pose>
     </include>
 
+    <!-- Paredes interiores: dejan pasos amplios por arriba y por abajo -->
     <include>
-      <name>sign_left_1</name>
-      <uri>model://sign_left_ign</uri> 
-      <pose>1.5 -1.5 0.0 0 0 3.1416</pose> <!-- yaw = 180 grados -->
+      <name>internal_wall_left</name>
+      <uri>model://wall120cm</uri>
+      <pose>-0.6 0 0.15 0 0 1.5708</pose>
+    </include>
+    <include>
+      <name>internal_wall_right</name>
+      <uri>model://wall120cm</uri>
+      <pose>0.6 0 0.15 0 0 1.5708</pose>
     </include>
 
     <physics name="default_physics" type="ode">
