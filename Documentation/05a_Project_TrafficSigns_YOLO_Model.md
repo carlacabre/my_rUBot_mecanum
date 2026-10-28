@@ -177,12 +177,48 @@ inside the same image.
 
 The traffic signs that we want to identify are:
 - Stop
-- Turn Right
-- Turn Left
+- Right route: turning left is forbidden
+- Left route: turning right is forbidden
 - Give Way
 - No Entry 
 
 ![](./Images/07_Yolo/TrafficSigns.png)
+
+The `Right` and `Left` class names represent the navigation action selected by
+the sign, not the direction crossed by the red prohibition bar:
+
+| Visual sign | Dataset class | Navigation result |
+| --- | --- | --- |
+| No left turn | `Right` | Use the right route |
+| No right turn | `Left` | Use the left route |
+
+## Repository layout and data policy
+
+The maintained scripts are located outside the documentation tree:
+
+```text
+tools/yolo_model_generation/
+|-- classification/
+|-- detection/
+|-- pose/
+|-- README.md
+`-- workspace/                 # local data, ignored by Git
+```
+
+Use `tools/yolo_model_generation/README.md` as the command reference. The
+local `workspace/` contains captured photos, prepared datasets, Roboflow
+exports and training results. These files are large or reproducible and are
+not part of the runtime ROS 2 packages.
+
+Only a validated deployment model should be copied to:
+
+```text
+src/AI_Projects/my_robot_ai_perception/models/
+```
+
+The original material under
+`Documentation/Files/YOLO_model_generation/` is preserved as a legacy copy
+during migration, but new experiments should use `tools/yolo_model_generation`.
 
 ## Installation
 ```bash
@@ -210,17 +246,17 @@ photos/
 ```
 - Capture around 200 images of each traffic sign using different positions, lighting conditions, backgrounds, and viewing angles.
     - If you want to use your computer webcam: 
-        - Open a terminal in the `/photos/Stop` folder, for example.
-        - Run `1_capture_images.py`.
+        - Open a terminal in `tools/yolo_model_generation/workspace/photos/Stop`, for example.
+        - Run `tools/yolo_model_generation/classification/capture_webcam.py`.
     - If you want to use the rUBot camera: 
-        - Use the ROS 2 node `1_capture_images_from_topic.py` to read images from the `/image_raw` topic and save them in the specified folder.
+        - Use `tools/yolo_model_generation/classification/capture_ros.py` to read images from the configured ROS 2 image topic and save them in the selected class folder.
         - In a new terminal, run:
 
         ```bash
-        py -3.11 1_capture_images_from_topic.py
+        py -3.11 tools/yolo_model_generation/classification/capture_ros.py
         ```
-        - Verify the topic name and change `OUTPUT_RELATIVE_PATH` for each traffic sign.
-- Use `2_prepare_dataset.py` to resize the images to 640 × 640 pixels and create the following dataset structure:
+        - Verify the topic name and change `OUTPUT_RELATIVE_PATH` for each traffic sign. Images are saved under `tools/yolo_model_generation/workspace/photos/`.
+- Use `tools/yolo_model_generation/classification/prepare_dataset.py` to resize the images to 640 × 640 pixels and create the following dataset structure:
 ```text
 traffic_sign_dataset/
 ├── train/
@@ -239,21 +275,21 @@ traffic_sign_dataset/
     └── Forbidden/
 ```
 > `TRAIN_RATIO = 0.80`: 80% of the images are used for training and 20% for validation.
-- Train the classification model with `3_generate_model.py`.
-- The model will be generated at `runs/classify/train/weights/best.pt`.
+- Train the classification model with `tools/yolo_model_generation/classification/train.py`.
+- The model will be generated at `tools/yolo_model_generation/workspace/runs/classify/train/weights/best.pt`.
 - **To test the model prediction** with the classification model `best.pt`:
     - Using your computer webcam:
-        - Verify `MODEL_PATH` in `4_classify_camera.py`, and then run the script.
+        - Run `tools/yolo_model_generation/classification/infer_webcam.py`.
     - If you want to use the rUBot camera: 
-        - Use the ROS 2 node `4_classify_camera_from_topic.py` to read images from the `/image_raw` topic and classify them in real time using the previously generated model.
+        - Use `tools/yolo_model_generation/classification/infer_ros.py` to read images from the configured ROS 2 topic and classify them in real time.
         - In a new terminal, run:
 
         ```bash
-        py -3.11 4_classify_camera_from_topic.py
+        py -3.11 tools/yolo_model_generation/classification/infer_ros.py
         ```
         - Verify the topic name and `MODEL_PATH`.
 
-## 2. YOLO Model Generation for an Identification Task
+## 2. YOLO Model Generation for an Object-Detection Task
 
 To label the traffic signs in the images and train a model, we will use Roboflow:
 
@@ -296,15 +332,23 @@ To label the traffic signs in the images and train a model, we will use Roboflow
 
  <img src="./Images/07_Yolo/09_DataSet.png" width="400"/>  <img src="./Images/07_Yolo/09_DataSet2.png" width="200"/> 
 
-- **To test the model prediction** with the identification model `yolov8n_identification_signals.pt`:
+- Place the exported Roboflow dataset and its `data.yaml` under
+  `tools/yolo_model_generation/workspace/roboflow/`.
+- Train the detection model with:
+
+    ```bash
+    py -3.11 tools/yolo_model_generation/detection/train.py
+    ```
+
+- **To test the model prediction** with the trained object-detection model:
     - Using your computer webcam:
-        - Verify `MODEL_PATH` in `5_identify_camera.py`, and then run the script.
+        - Run `tools/yolo_model_generation/detection/infer_webcam.py`.
     - If you want to use the rUBot camera: 
-        - Verify the topic and `MODEL_PATH` in `5_identify_camera_from_topic.py`.
+        - Verify the ROS image topic in `tools/yolo_model_generation/detection/infer_ros.py`.
         - In a new terminal, run:
 
         ```bash
-        py -3.11 5_identify_camera_from_topic.py
+        py -3.11 tools/yolo_model_generation/detection/infer_ros.py
         ```
 
 
@@ -313,11 +357,11 @@ To label the traffic signs in the images and train a model, we will use Roboflow
 Pose estimation detects **keypoints of articulated bodies**, typically
 humans.
 
-1. Open a terminal in `YOLO_model_generation`.
+1. Open a terminal in the repository root.
 2. Run the Python program:
 
 ```bash
-py -3.11 6_pose_gesture_camera.py
+py -3.11 tools/yolo_model_generation/pose/pose_gesture_webcam.py
 ```
 
 ![](./Images/07_Yolo/01_Yolo_Pose_Detection.png)

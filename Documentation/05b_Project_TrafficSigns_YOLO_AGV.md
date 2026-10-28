@@ -6,7 +6,7 @@ perception and navigation in separate ROS 2 packages:
 
 | Package | Responsibility |
 | --- | --- |
-| `my_robot_ai_identification` | Camera image to traffic-sign class |
+| `my_robot_ai_perception` | Camera image to traffic-sign class |
 | `my_robot_ai_navigation` | Traffic-sign class to route decision |
 | `my_robot_nav_control` | General navigation tools not tied to AI |
 
@@ -19,8 +19,8 @@ first step in The Construct and before every real-robot test.
 /camera/image_raw
         |
         v
-traffic_sign_yolo
-(my_robot_ai_identification)
+traffic_sign_classifier
+(my_robot_ai_perception)
         |
         | /traffic_sign  [std_msgs/msg/String]
         v
@@ -61,7 +61,7 @@ Build the perception and AI-navigation packages:
 ```bash
 cd ~/my_rUBot_mecanum
 colcon build --symlink-install \
-  --packages-select my_robot_ai_identification my_robot_ai_navigation
+  --packages-select my_robot_ai_perception my_robot_ai_navigation
 source install/setup.bash
 ```
 
@@ -84,11 +84,11 @@ Each pose uses `[x, y, yaw]` in the `map` frame:
 traffic_sign_navigation:
   ros__parameters:
     use_sim_time: true
-    initial_pose: [0.0, 0.0, 0.0]
-    inspection_pose: [0.5, -1.0, 1.57]
-    left_waypoint: [-0.8, 0.3, 1.57]
-    right_waypoint: [0.8, 0.3, 1.57]
-    final_pose: [0.0, 1.3, 1.57]
+    initial_pose: [-0.5, 0.0, 0.0]
+    inspection_pose: [0.0, 0.0, 0.0]
+    left_waypoint: [0.5, 1.0, 0.0]
+    right_waypoint: [0.5, -1.0, 0.0]
+    final_pose: [2.0, 1.0, 1.57]
     stop_duration: 3.0
 ```
 
@@ -122,7 +122,7 @@ of the future YOLO detector.
 ros2 launch my_robot_bringup my_robot_bringup_gz.launch.py \
   world:=square_sign_left_ign.world \
   robot_model:=rubot/rubot_mecanum.urdf.xacro \
-  x:=0.0 y:=0.0 yaw:=0.0
+  x:=-0.5 y:=0.0 yaw:=0.0
 ```
 
 ### 4.2 Start Nav2
@@ -191,12 +191,8 @@ ros2 topic hz /camera/image_raw
 Start the simple classifier interface:
 
 ```bash
-ros2 launch my_robot_ai_identification traffic_sign_yolo.launch.py \
-  image_topic:=/camera/image_raw \
-  model:=yolo11n_cls_g1.pt \
-  confidence:=0.70 \
-  stable_frames:=3 \
-  use_sim_time:=true
+ros2 launch my_robot_ai_perception traffic_sign_classifier.launch.py \
+  config_file:=traffic_sign_classifier_sw.yaml
 ```
 
 The node publishes:
@@ -205,6 +201,16 @@ The node publishes:
 | --- | --- | --- |
 | `/traffic_sign` | `std_msgs/msg/String` | Stable normalized class |
 | `/traffic_sign/image` | `sensor_msgs/msg/Image` | Annotated image |
+
+The following illustrative figure shows the expected camera view at the
+inspection pose and the classification overlay published on
+`/traffic_sign/image`:
+
+![Illustrative route classification: no left turn selects right, and no right turn selects left](./Images/07_Yolo/traffic_sign_classifier_view.png)
+
+The manual `ros2 topic pub` command used in The Construct publishes only the
+class message; it does not create an annotated image. The overlay is generated
+by `my_robot_ai_perception` when it processes a real or simulated camera image.
 
 Verify the classifier before starting autonomous navigation:
 
@@ -274,12 +280,8 @@ safe with manual messages.
 Start the detector with the real camera topic:
 
 ```bash
-ros2 launch my_robot_ai_identification traffic_sign_yolo.launch.py \
-  image_topic:=/image_raw \
-  model:=yolo11n_cls_g1.pt \
-  confidence:=0.70 \
-  stable_frames:=3 \
-  use_sim_time:=false
+ros2 launch my_robot_ai_perception traffic_sign_classifier.launch.py \
+  config_file:=traffic_sign_classifier_real.yaml
 ```
 
 Before moving the robot, show each sign to the camera and verify:
@@ -318,6 +320,10 @@ Nav2 goal
 The following implementation is the previous working solution. Its nodes,
 launch files and configuration files are intentionally preserved until the
 new interface has been validated in simulation and on the real robot.
+
+The `my_robot_ai_identification` package and `custom_msgs` remain available
+for this legacy implementation. The new `my_robot_ai_perception` and
+`my_robot_ai_navigation` packages do not depend on them.
 
 ### Previous project description
 
