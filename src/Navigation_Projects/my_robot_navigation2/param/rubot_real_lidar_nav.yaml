@@ -141,8 +141,8 @@ controller_server:
     general_goal_checker:
       stateful: false
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.20   # Augmenta la tolerància de posició XY (abans 0.25)
-      yaw_goal_tolerance: 0.35 # Augmenta la tolerància d'orientació (aproximadament 45 graus, abans 0.25 radians)
+      xy_goal_tolerance: 0.10   # Augmenta la tolerància de posició XY (abans 0.25)
+      yaw_goal_tolerance: 0.1745 # Augmenta la tolerància d'orientació (aproximadament 45 graus, abans 0.25 radians)
 
     # DWB parameters
     FollowPath:
